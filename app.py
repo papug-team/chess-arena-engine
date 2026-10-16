@@ -84,7 +84,7 @@ def play_turn():
 
     data = request.get_json(silent=True) or {}
     fen = data.get("fen")
-    player_move = data.get("move")
+    player_move = data.get("move")  # Może być None (brak klucza), "" (pusty string) lub UCI (np. "e2e4")
     level = data.get("level", 5)
 
     if not isinstance(fen, str) or len(fen) > 200:
@@ -107,8 +107,8 @@ def play_turn():
         player_move_uci = None
         engine_move_str = None
 
-        # Jeśli gracz przesłał ruch, weryfikujemy go i wykonujemy na planszy
-        if player_move and player_move != "":
+        # 1. Jeśli gracz wykonał ruch, zweryfikuj go i wykonaj na planszy
+        if player_move is not None and player_move != "":
             if not isinstance(player_move, str) or len(player_move) > 5:
                 return jsonify({"error": "Invalid move"}), 400
 
@@ -120,14 +120,14 @@ def play_turn():
             board.push(move)
             player_move_uci = move.uci()
 
-        # Inteligentne decydowanie, czy silnik ma wykonać ruch:
-        # - Jeśli gracz wykonał ruch -> silnik odpowiada.
-        # - Jeśli to początek gry (startowy FEN) i ruch gracza nie został przesłany (np. gra czarnymi) -> silnik gra jako pierwszy (białymi).
-        # - W przeciwnym razie (gra białymi na starcie) silnik CZEKA na ruch gracza.
+        # 2. Decyzja, czy silnik ma wykonać ruch:
+        # - Jeśli player_move to `None` (wysłane przy starcie jako czarne) -> silnik gra pierwszy.
+        # - Jeśli player_move to poprawny ruch gracza -> silnik odpowiada.
+        # - Jeśli player_move to `""` (pusty string przy starcie jako białe) -> silnik NIE gra, tylko zwraca pozycję i legalne ruchy.
         should_engine_play = False
-        if player_move and player_move != "":
+        if player_move is None:
             should_engine_play = True
-        elif (not player_move or player_move == "") and fen.startswith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"):
+        elif player_move != "":
             should_engine_play = True
 
         if should_engine_play and not board.is_game_over():
@@ -155,4 +155,4 @@ def play_turn():
         return jsonify({"error": "Invalid move or position"}), 400
     except Exception:
         app.logger.exception("Chess turn failed")
-        return jsonify({"error": "Engine unavailable"}), 500
+        return jsonify({"error": "Engine unavailable"}}, 500
