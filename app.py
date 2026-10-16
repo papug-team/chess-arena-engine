@@ -1,4 +1,3 @@
-
 import os
 import hmac
 import shutil
@@ -91,9 +90,6 @@ def play_turn():
     if not isinstance(fen, str) or len(fen) > 200:
         return jsonify({"error": "Invalid FEN"}), 400
 
-    if not isinstance(player_move, str) or len(player_move) > 5:
-        return jsonify({"error": "Invalid move"}), 400
-
     if isinstance(level, bool) or not isinstance(level, int):
         return jsonify({"error": "Invalid level"}), 400
 
@@ -108,16 +104,26 @@ def play_turn():
         if board.is_game_over():
             return jsonify({"error": "Game is over"}), 400
 
-        move = chess.Move.from_uci(player_move)
+        engine_move_str = None
 
-        if move not in board.legal_moves:
-            return jsonify({"error": "Illegal move"}), 400
+        # Obsługa sytuacji, gdy gracz gra czarnymi i silnik ma wykonać pierwszy ruch (brak ruchu gracza)
+        if player_move and player_move != "":
+            if not isinstance(player_move, str) or len(player_move) > 5:
+                return jsonify({"error": "Invalid move"}), 400
 
-        board.push(move)
+            move = chess.Move.from_uci(player_move)
+
+            if move not in board.legal_moves:
+                return jsonify({"error": "Illegal move"}), 400
+
+            board.push(move)
+            player_move_uci = move.uci()
+        else:
+            player_move_uci = None
 
         if board.is_game_over():
             return jsonify({
-                "player_move": move.uci(),
+                "player_move": player_move_uci,
                 "engine_move": None,
                 "fen": board.fen(),
                 "game_over": True,
@@ -132,10 +138,11 @@ def play_turn():
             )
 
         board.push(response.move)
+        engine_move_str = response.move.uci()
 
         return jsonify({
-            "player_move": move.uci(),
-            "engine_move": response.move.uci(),
+            "player_move": player_move_uci,
+            "engine_move": engine_move_str,
             "fen": board.fen(),
             "game_over": board.is_game_over(),
             "result": board.result() if board.is_game_over() else None
