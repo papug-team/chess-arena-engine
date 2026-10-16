@@ -105,7 +105,9 @@ def play_turn():
             return jsonify({"error": "Game is over"}), 400
 
         player_move_uci = None
+        engine_move_str = None
 
+        # Jeśli gracz przesłał ruch, weryfikujemy go i wykonujemy na planszy
         if player_move and player_move != "":
             if not isinstance(player_move, str) or len(player_move) > 5:
                 return jsonify({"error": "Invalid move"}), 400
@@ -118,27 +120,25 @@ def play_turn():
             board.push(move)
             player_move_uci = move.uci()
 
-        if board.is_game_over():
-            return jsonify({
-                "player_move": player_move_uci,
-                "engine_move": None,
-                "fen": board.fen(),
-                "game_over": True,
-                "result": board.result(),
-                "legal_moves": [m.uci() for m in board.legal_moves],
-                "is_check": board.is_check(),
-                "king_square": chess.square_name(board.king(board.turn)) if board.is_check() else None
-            })
+        # Inteligentne decydowanie, czy silnik ma wykonać ruch:
+        # - Jeśli gracz wykonał ruch -> silnik odpowiada.
+        # - Jeśli to początek gry (startowy FEN) i ruch gracza nie został przesłany (np. gra czarnymi) -> silnik gra jako pierwszy (białymi).
+        # - W przeciwnym razie (gra białymi na starcie) silnik CZEKA na ruch gracza.
+        should_engine_play = False
+        if player_move and player_move != "":
+            should_engine_play = True
+        elif (not player_move or player_move == "") and fen.startswith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"):
+            should_engine_play = True
 
-        with engine_lock:
-            chess_engine = get_engine()
-            chess_engine.configure({"Skill Level": level})
-            response = chess_engine.play(
-                board, chess.engine.Limit(time=0.5)
-            )
-
-        board.push(response.move)
-        engine_move_str = response.move.uci()
+        if should_engine_play and not board.is_game_over():
+            with engine_lock:
+                chess_engine = get_engine()
+                chess_engine.configure({"Skill Level": level})
+                response = chess_engine.play(
+                    board, chess.engine.Limit(time=0.5)
+                )
+            board.push(response.move)
+            engine_move_str = response.move.uci()
 
         return jsonify({
             "player_move": player_move_uci,
