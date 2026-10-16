@@ -104,9 +104,8 @@ def play_turn():
         if board.is_game_over():
             return jsonify({"error": "Game is over"}), 400
 
-        engine_move_str = None
+        player_move_uci = None
 
-        # Obsługa sytuacji, gdy gracz gra czarnymi i silnik ma wykonać pierwszy ruch (brak ruchu gracza)
         if player_move and player_move != "":
             if not isinstance(player_move, str) or len(player_move) > 5:
                 return jsonify({"error": "Invalid move"}), 400
@@ -118,8 +117,6 @@ def play_turn():
 
             board.push(move)
             player_move_uci = move.uci()
-        else:
-            player_move_uci = None
 
         if board.is_game_over():
             return jsonify({
@@ -127,7 +124,10 @@ def play_turn():
                 "engine_move": None,
                 "fen": board.fen(),
                 "game_over": True,
-                "result": board.result()
+                "result": board.result(),
+                "legal_moves": [m.uci() for m in board.legal_moves],
+                "is_check": board.is_check(),
+                "king_square": chess.square_name(board.king(board.turn)) if board.is_check() else None
             })
 
         with engine_lock:
@@ -145,7 +145,10 @@ def play_turn():
             "engine_move": engine_move_str,
             "fen": board.fen(),
             "game_over": board.is_game_over(),
-            "result": board.result() if board.is_game_over() else None
+            "result": board.result() if board.is_game_over() else None,
+            "legal_moves": [m.uci() for m in board.legal_moves],
+            "is_check": board.is_check(),
+            "king_square": chess.square_name(board.king(board.turn)) if board.is_check() else None
         })
 
     except ValueError:
